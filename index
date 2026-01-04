@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>David | Biohacking System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Palette: Zinc (Base) + Indigo (Training) + Emerald (Nutrition) */
+        body { background-color: #f4f4f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 350px;
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        /* Interactive Elements */
+        .clickable-card {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .clickable-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #4f46e5;
+        }
+
+        /* Tabs */
+        .day-tab.active { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .diet-day-tab.active { background-color: #10b981; color: white; border-color: #10b981; }
+
+        /* Nutrition Selection */
+        .food-item.selected {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+            position: relative;
+        }
+        .food-item.selected::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            top: -5px; right: -5px;
+            background: #10b981; color: white;
+            width: 18px; height: 18px;
+            border-radius: 50%; font-size: 10px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 0; border-radius: 12px; width: 90%; max-width: 600px; animation: slideIn 0.3s; }
+        @keyframes slideIn { from {transform: translateY(20px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
+
+        /* Nav */
+        .nav-link.active { color: #4f46e5; border-bottom: 2px solid #4f46e5; }
+    </style>
+</head>
+<body class="bg-zinc-100 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <div class="bg-gray-900 text-white p-2 rounded-lg">
+                        <i class="fa-solid fa-microchip"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-gray-900 leading-tight">Biohacking <span class="text-xs text-indigo-600 block font-normal">David System v5.0</span></h1>
+                    </div>
+                </div>
+                <div class="flex space-x-4 md:space-x-8 items-center overflow-x-auto">
+                    <button onclick="setView('dashboard')" id="btn-dashboard" class="nav-link active py-5 text-sm font-medium text-gray-500 hover:text-indigo-600 transition">Evolución</button>
+                    <button onclick="setView('training')" id="btn-training" class="nav-link py-5 text-sm font-medium text-gray-500 hover:text-indigo-600 transition">Entrenamiento</button>
+                    <button onclick="setView('nutrition')" id="btn-nutrition" class="nav-link py-5 text-sm font-medium text-gray-500 hover:text-indigo-600 transition">Dieta</button>
+                    <button onclick="setView('shopping')" id="btn-shopping" class="nav-link py-5 text-sm font-medium text-gray-500 hover:text-indigo-600 transition"><i class="fa-solid fa-cart-shopping"></i></button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- ============================================ -->
+        <!-- VIEW: DASHBOARD (FIXED PERSISTENCE) -->
+        <!-- ============================================ -->
+        <div id="view-dashboard" class="space-y-6 animate-fade-in">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Evolución Fisiológica</h2>
+                    <button onclick="resetHistory()" class="text-xs text-red-400 hover:text-red-600 underline">Resetear Datos</button>
+                </div>
+                
+                <!-- Chart Area -->
+                <div class="chart-container mb-6">
+                    <canvas id="evolutionChart"></canvas>
+                </div>
+
+                <!-- Input Area -->
+                <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                    <h3 class="font-bold text-indigo-900 mb-4 text-sm"><i class="fa-solid fa-plus-circle mr-2"></i>Registrar Nuevo Bio-Marcador</h3>
+                    <form onsubmit="saveDataPoint(event)" class="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Fecha</label>
+                            <input type="date" id="in-date" required class="w-full p-2 text-sm border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">Peso (kg)</label>
+                            <input type="number" step="0.1" id="in-weight" placeholder="65.1" required class="w-full p-2 text-sm border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">% Grasa</label>
+                            <input type="number" step="0.1" id="in-fat" placeholder="12.5" required class="w-full p-2 text-sm border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">% Músculo</label>
+                            <input type="number" step="0.1" id="in-muscle" placeholder="42.5" required class="w-full p-2 text-sm border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div class="col-span-2 md:col-span-1">
+                            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 rounded hover:bg-indigo-700 shadow-md transition transform active:scale-95">
+                                Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Stats Summary -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500">
+                    <p class="text-xs text-gray-400 uppercase font-bold">Músculo Actual</p>
+                    <p class="text-2xl font-bold text-gray-800" id="stat-muscle">--%</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-emerald-500">
+                    <p class="text-xs text-gray-400 uppercase font-bold">Grasa Actual</p>
+                    <p class="text-2xl font-bold text-gray-800" id="stat-fat">--%</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                    <p class="text-xs text-gray-400 uppercase font-bold">Peso Actual</p>
+                    <p class="text-2xl font-bold text-gray-800" id="stat-weight">--kg</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-amber-500">
+                    <p class="text-xs text-gray-400 uppercase font-bold">Tendencia</p>
+                    <p class="text-xs text-gray-500 mt-1">Manteniendo Grasa Visceral baja (3)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: TRAINING (v2.0 RESTORED + TIPS) -->
+        <!-- ============================================ -->
+        <div id="view-training" class="hidden space-y-6 animate-fade-in">
+            <div class="bg-white p-6 rounded-xl shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Protocolo de Entrenamiento</h2>
+                    <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full font-bold">Push/Pull/Legs</span>
+                </div>
+                
+                <!-- Day Tabs -->
+                <div class="flex overflow-x-auto space-x-2 mb-6 pb-2" id="training-tabs">
+                    <!-- Injected via JS -->
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Workout Cards -->
+                    <div id="workout-container" class="lg:col-span-2 space-y-4">
+                        <!-- Injected via JS -->
+                    </div>
+
+                    <!-- Intra-Workout Tips -->
+                    <div class="space-y-6">
+                        <div class="bg-slate-800 text-white p-5 rounded-xl shadow-lg border-l-4 border-indigo-500">
+                            <h3 class="font-bold text-lg mb-3"><i class="fa-solid fa-stopwatch mr-2"></i>Biohacking Intra-Entreno</h3>
+                            
+                            <div class="mb-4">
+                                <h4 class="text-indigo-300 text-xs font-bold uppercase mb-1">Control del Cortisol</h4>
+                                <p class="text-sm text-gray-300 leading-snug">
+                                    Máx <strong>60-70 min</strong>. Más tiempo eleva el cortisol y permeabilidad intestinal.
+                                </p>
+                            </div>
+
+                            <div class="mb-4">
+                                <h4 class="text-indigo-300 text-xs font-bold uppercase mb-1">Activación Vagal</h4>
+                                <p class="text-sm text-gray-300 leading-snug">
+                                    En descansos: Respiración nasal profunda (4s in, 4s out) para recuperar.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h4 class="text-indigo-300 text-xs font-bold uppercase mb-1">Hidratación</h4>
+                                <p class="text-sm text-gray-300 leading-snug">
+                                    Agua + Pizca de Sal Marina para electrolitos si sudas mucho.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-gray-200">
+                            <h3 class="font-bold text-gray-800 text-sm mb-2">Intensidad RPE (8-9)</h3>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                                <div class="bg-gradient-to-r from-green-400 to-red-500 h-2.5 rounded-full" style="width: 85%"></div>
+                            </div>
+                            <p class="text-xs text-gray-600">Deja 1-2 repeticiones en reserva.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: NUTRITION PLANNER (v3.0) -->
+        <!-- ============================================ -->
+        <div id="view-nutrition" class="hidden space-y-6 animate-fade-in">
+            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold text-emerald-900"><i class="fa-solid fa-utensils mr-2"></i>Menú Microbiota</h2>
+                    <p class="text-xs text-emerald-700">Selecciona para generar la lista de compra.</p>
+                </div>
+                <div class="bg-white px-3 py-1 rounded shadow text-xs font-bold text-gray-600">~2800 kcal</div>
+            </div>
+
+            <!-- Diet Days -->
+            <div class="flex overflow-x-auto space-x-2 pb-2" id="diet-days">
+                <!-- JS Generated -->
+            </div>
+
+            <!-- Meal Grid -->
+            <div id="meal-planner-container" class="grid grid-cols-1 gap-6">
+                <!-- JS Generated -->
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: SHOPPING LIST (v3.0) -->
+        <!-- ============================================ -->
+        <div id="view-shopping" class="hidden space-y-6 animate-fade-in">
+            <div class="bg-white p-6 rounded-xl shadow-sm min-h-[500px]">
+                <div class="flex justify-between items-center mb-6 border-b pb-4">
+                    <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-cart-shopping mr-2 text-indigo-600"></i>Lista Compra</h2>
+                    <button onclick="clearShoppingList()" class="text-red-500 text-xs hover:underline">Limpiar</button>
+                </div>
+                <div id="shopping-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- JS Generated -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- EXERCISE MODAL -->
+    <div id="exerciseModal" class="modal">
+        <div class="modal-content relative bg-white">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-white hover:text-gray-200 z-50 text-2xl">&times;</button>
+            <div class="bg-indigo-600 p-6 rounded-t-xl">
+                <h2 id="modal-title" class="text-2xl font-bold text-white">Ejercicio</h2>
+                <p id="modal-subtitle" class="text-indigo-200 text-sm">Grupo Muscular</p>
+            </div>
+            <div class="p-6">
+                <div class="bg-gray-900 rounded-lg aspect-video flex flex-col items-center justify-center mb-6 relative overflow-hidden group shadow-lg">
+                    <i id="modal-icon" class="fa-solid fa-dumbbell text-6xl text-gray-600 mb-4"></i>
+                    <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                        <a id="modal-video-link" href="#" target="_blank" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full flex items-center shadow-lg transform hover:scale-105 transition">
+                            <i class="fa-brands fa-youtube mr-2"></i> Ver Técnica
+                        </a>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-800 border-b pb-2">Claves de Ejecución</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-start"><span class="bg-indigo-100 text-indigo-700 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 mt-0.5">1</span><p id="step-1" class="text-sm text-gray-600">...</p></div>
+                        <div class="flex items-start"><span class="bg-indigo-100 text-indigo-700 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 mt-0.5">2</span><p id="step-2" class="text-sm text-gray-600">...</p></div>
+                        <div class="flex items-start"><span class="bg-indigo-100 text-indigo-700 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 mt-0.5">3</span><p id="step-3" class="text-sm text-gray-600">...</p></div>
+                    </div>
+                    <div class="mt-4 bg-emerald-50 p-3 rounded border border-emerald-100 flex items-start">
+                        <i class="fa-solid fa-microchip text-emerald-600 mt-1 mr-3"></i>
+                        <div>
+                            <p class="text-xs font-bold text-emerald-800">Bio-Tip:</p>
+                            <p id="bio-tip" class="text-xs text-emerald-700">...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATASETS ---
+        const EXERCISE_DB = {
+            'Press Banca': { subtitle: 'Pecho - Compuesto', icon: 'fa-dumbbell', videoQuery: 'bench press hypertrophy form', steps: ['Retrae escápulas.', 'Baja a línea de pezones.', 'Empuja explosivo.'], bioTip: 'No rebotes en el pecho.' },
+            'Press Militar': { subtitle: 'Hombros - Vertical', icon: 'fa-person-lifting-weights', videoQuery: 'overhead press form', steps: ['Core apretado.', 'Empuja vertical.', 'Bloquea arriba.'], bioTip: 'Protege tu lumbar apretando glúteos.' },
+            'Fondos': { subtitle: 'Pecho/Tríceps', icon: 'fa-arrows-down-to-line', videoQuery: 'dips chest focus', steps: ['Inclina torso adelante.', 'Baja hasta 90 grados.', 'Sube controlado.'], bioTip: 'Cuidado con hombros si bajas mucho.' },
+            'Elevaciones Laterales': { subtitle: 'Hombro Lateral', icon: 'fa-dove', videoQuery: 'lateral raise form', steps: ['Codos semiflexionados.', 'Sube como jarra de agua.', 'Controla bajada.'], bioTip: 'No uses inercia.' },
+            'Dominadas': { subtitle: 'Espalda Ancha', icon: 'fa-arrow-up', videoQuery: 'pull up form', steps: ['Pecho a barra.', 'Depresión escapular.', 'Baja lento.'], bioTip: 'Estira dorsal abajo del todo.' },
+            'Remo con Barra': { subtitle: 'Espalda Densidad', icon: 'fa-anchor', videoQuery: 'barbell row form', steps: ['Espalda recta.', 'Tira hacia cadera.', 'Codos pegados.'], bioTip: 'Siente la contracción atrás.' },
+            'Sentadilla': { subtitle: 'Pierna Completa', icon: 'fa-person', videoQuery: 'squat technique', steps: ['Rompe paralelo.', 'Rodillas fuera.', 'Pecho alto.'], bioTip: 'Rey de la hormona de crecimiento.' },
+            'Peso Muerto Rumano': { subtitle: 'Isquios/Glúteo', icon: 'fa-weight-hanging', videoQuery: 'rdl form', steps: ['Cadera atrás.', 'Espalda neutra.', 'Siente estirón.'], bioTip: 'No toques suelo, tensión constante.' },
+            'Prensa': { subtitle: 'Cuádriceps', icon: 'fa-layer-group', videoQuery: 'leg press hypertrophy', steps: ['Pies bajos.', 'No bloquees rodillas.', 'Rango completo.'], bioTip: 'Seguro para la espalda baja.' },
+            'Zancadas': { subtitle: 'Glúteo/Pierna', icon: 'fa-shoe-prints', videoQuery: 'lunge form', steps: ['Paso largo.', 'Torso recto.', 'Rodilla casi toca suelo.'], bioTip: 'Unilateral para corregir asimetrías.' },
+            'Face Pull': { subtitle: 'Salud Hombro', icon: 'fa-bullseye', videoQuery: 'face pull form', steps: ['Cuerda a frente.', 'Abre codos.', 'Rota externo.'], bioTip: 'Clave para postura.' },
+            'Curl Bíceps': { subtitle: 'Bíceps', icon: 'fa-dumbbell', videoQuery: 'barbell curl form', steps: ['Codos fijos.', 'No balancees.', 'Aprieta arriba.'], bioTip: 'Aislamiento puro.' },
+            'Jalón al Pecho': { subtitle: 'Espalda Ancha', icon: 'fa-arrow-down', videoQuery: 'lat pulldown form', steps: ['Pecho alto.', 'Tira con codos.', 'Controla retorno.'], bioTip: 'Alternativa a dominadas.' },
+            'Press Inclinado': { subtitle: 'Pecho Superior', icon: 'fa-dumbbell', videoQuery: 'incline dumbbell press', steps: ['Banco 30 grados.', 'Baja profundo.', 'Junta arriba.'], bioTip: 'Llena la parte alta del pecho.' }
+        };
+
+        const WEEKLY_PLAN = {
+            'Lunes': { focus: 'Empuje (Pecho/Hombro)', exercises: ['Press Banca', 'Press Militar', 'Fondos', 'Elevaciones Laterales'] },
+            'Martes': { focus: 'Tracción (Espalda)', exercises: ['Dominadas', 'Remo con Barra', 'Face Pull', 'Curl Bíceps'] },
+            'Miércoles': { focus: 'Descanso Activo', exercises: [] },
+            'Jueves': { focus: 'Pierna (Cuádriceps)', exercises: ['Sentadilla', 'Prensa', 'Zancadas'] },
+            'Viernes': { focus: 'Torso Completo', exercises: ['Press Inclinado', 'Jalón al Pecho', 'Fondos', 'Curl Bíceps'] },
+            'Sábado': { focus: 'Pierna (Posterior)', exercises: ['Peso Muerto Rumano', 'Zancadas', 'Sentadilla'] },
+            'Domingo': { focus: 'Descanso Total', exercises: [] }
+        };
+
+        const FOOD_DB = {
+            breakfast: [{ id: 'b1', name: 'Avena Fermentada', tags: ['Prebiótico'], icon: 'fa-bowl-rice' }, { id: 'b2', name: 'Huevos + Espinacas', tags: ['Proteína'], icon: 'fa-egg' }, { id: 'b3', name: 'Tostada Aguacate', tags: ['Grasa'], icon: 'fa-bread-slice' }, { id: 'b4', name: 'Kéfir + Fruta', tags: ['Probiótico'], icon: 'fa-glass-water' }],
+            midmorning: [{ id: 'm1', name: 'Manzana Asada', tags: ['Pectina'], icon: 'fa-apple-whole' }, { id: 'm2', name: 'Nueces (30g)', tags: ['Omega-3'], icon: 'fa-brain' }, { id: 'm3', name: 'Huevo Duro', tags: ['Proteína'], icon: 'fa-egg' }],
+            lunch: [{ id: 'l1', name: 'Pollo + Patata Fria', tags: ['Almidón Res.'], icon: 'fa-drumstick-bite' }, { id: 'l2', name: 'Lentejas + Arroz', tags: ['Completo'], icon: 'fa-spoon' }, { id: 'l3', name: 'Ternera + Boniato', tags: ['Energía'], icon: 'fa-bacon' }],
+            snack: [{ id: 's1', name: 'Plátano Macho', tags: ['Prebiótico'], icon: 'fa-carrot' }, { id: 's2', name: 'Yogur + Chía', tags: ['Calcio'], icon: 'fa-jar' }, { id: 's3', name: 'Chocolate 85%', tags: ['Polifenoles'], icon: 'fa-cookie' }],
+            dinner: [{ id: 'd1', name: 'Salmón + Brócoli', tags: ['Omega-3'], icon: 'fa-fish' }, { id: 'd2', name: 'Merluza + Judías', tags: ['Ligero'], icon: 'fa-fish-fins' }, { id: 'd3', name: 'Revuelto Gambas', tags: ['Proteína'], icon: 'fa-shrimp' }]
+        };
+        const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+        // --- STATE & PERSISTENCE ---
+        let userHistory = JSON.parse(localStorage.getItem('david_bio_v5_history')) || [{ date: '2023-12-29', weight: 65.1, fat: 12.5, muscle: 42.5 }];
+        let weeklyMenu = JSON.parse(localStorage.getItem('david_bio_v5_menu')) || {};
+        DAYS.forEach(d => { if(!weeklyMenu[d]) weeklyMenu[d] = { breakfast:[], midmorning:[], lunch:[], snack:[], dinner:[] }; });
+
+        let currentTrainingDay = 'Lunes';
+        let currentDietDay = 'Lunes';
+        let myChart = null; // Global chart instance
+
+        // --- CHART LOGIC (FIXED) ---
+        function initChart() {
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            
+            // CRITICAL FIX: Destroy old instance
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: userHistory.map(d => d.date),
+                    datasets: [
+                        { label: 'Músculo %', data: userHistory.map(d => d.muscle), borderColor: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.3 },
+                        { label: 'Grasa %', data: userHistory.map(d => d.fat), borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.0)', borderDash: [5,5], tension: 0.3 },
+                        { label: 'Peso (kg)', data: userHistory.map(d => d.weight), borderColor: '#1f2937', borderDash: [2,2], tension: 0.1, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { position: 'left', title: {display: true, text: '%'} },
+                        y1: { position: 'right', grid: {drawOnChartArea: false}, title: {display: true, text: 'kg'} }
+                    }
+                }
+            });
+
+            // Update Text Stats
+            const last = userHistory[userHistory.length - 1];
+            document.getElementById('stat-weight').textContent = last.weight + 'kg';
+            document.getElementById('stat-fat').textContent = last.fat + '%';
+            document.getElementById('stat-muscle').textContent = last.muscle + '%';
+        }
+
+        function saveDataPoint(e) {
+            e.preventDefault();
+            const newData = {
+                date: document.getElementById('in-date').value,
+                weight: parseFloat(document.getElementById('in-weight').value),
+                fat: parseFloat(document.getElementById('in-fat').value),
+                muscle: parseFloat(document.getElementById('in-muscle').value)
+            };
+            
+            userHistory.push(newData);
+            // Sort by date
+            userHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            localStorage.setItem('david_bio_v5_history', JSON.stringify(userHistory));
+            
+            initChart(); // Re-draw chart
+            document.querySelector('form').reset();
+            document.getElementById('in-date').valueAsDate = new Date();
+            alert('Datos guardados correctamente.');
+        }
+
+        function resetHistory() {
+            if(confirm("¿Borrar todo el historial y empezar de cero?")) {
+                localStorage.removeItem('david_bio_v5_history');
+                location.reload();
+            }
+        }
+
+        // --- TRAINING FUNCTIONS ---
+        function renderTrainingView() {
+            const tabs = document.getElementById('training-tabs');
+            tabs.innerHTML = DAYS.map(day => `
+                <button onclick="loadWorkout('${day}')" 
+                class="day-tab px-5 py-2 rounded-full border border-gray-200 text-sm font-bold transition whitespace-nowrap ${currentTrainingDay === day ? 'active' : 'bg-white text-gray-600 hover:bg-gray-50'}">
+                ${day}
+                </button>
+            `).join('');
+            loadWorkout(currentTrainingDay);
+        }
+
+        function loadWorkout(day) {
+            currentTrainingDay = day;
+            document.querySelectorAll('.day-tab').forEach(b => {
+                b.classList.remove('active');
+                if(b.textContent.trim() === day) b.classList.add('active');
+            });
+
+            const plan = WEEKLY_PLAN[day];
+            const container = document.getElementById('workout-container');
+
+            if(plan.exercises.length === 0) {
+                container.innerHTML = `<div class="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center text-indigo-400">
+                    <i class="fa-solid fa-bed text-4xl mb-2"></i><br>Día de Descanso / Recuperación Activa
+                </div>`;
+                return;
+            }
+
+            let html = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+            plan.exercises.forEach(exName => {
+                const data = EXERCISE_DB[exName] || { subtitle: 'Ejercicio', icon: 'fa-dumbbell' };
+                html += `
+                    <div onclick="openModal('${exName}')" class="clickable-card bg-white p-4 rounded-xl shadow-sm flex items-center justify-between group border border-gray-100">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-600 transition">
+                                <i class="fa-solid ${data.icon} text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">${exName}</h4>
+                                <p class="text-xs text-gray-500">${data.subtitle}</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-circle-play text-indigo-600 text-2xl opacity-0 group-hover:opacity-100 transition"></i>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function openModal(exName) {
+            const data = EXERCISE_DB[exName];
+            if(!data) return;
+            document.getElementById('modal-title').innerText = exName;
+            document.getElementById('modal-subtitle').innerText = data.subtitle;
+            document.getElementById('modal-icon').className = `fa-solid ${data.icon} text-6xl text-gray-600 mb-4`;
+            document.getElementById('step-1').innerText = data.steps[0] || '';
+            document.getElementById('step-2').innerText = data.steps[1] || '';
+            document.getElementById('step-3').innerText = data.steps[2] || '';
+            document.getElementById('bio-tip').innerText = data.bioTip || '';
+            document.getElementById('modal-video-link').href = `https://www.youtube.com/results?search_query=${encodeURIComponent(data.videoQuery)}`;
+            document.getElementById('exerciseModal').style.display = 'block';
+        }
+
+        function closeModal() { document.getElementById('exerciseModal').style.display = 'none'; }
+        window.onclick = function(e) { if(e.target == document.getElementById('exerciseModal')) closeModal(); }
+
+        // --- NUTRITION FUNCTIONS ---
+        function renderNutritionView() {
+            const container = document.getElementById('diet-days');
+            container.innerHTML = DAYS.map(day => `
+                <button onclick="loadDiet('${day}')" 
+                    class="diet-day-tab px-5 py-2 rounded-full border border-gray-200 text-sm font-bold transition whitespace-nowrap ${currentDietDay === day ? 'active' : 'bg-white text-gray-600 hover:bg-gray-50'}">
+                    ${day}
+                </button>
+            `).join('');
+            renderMealGrid();
+        }
+
+        function loadDiet(day) { currentDietDay = day; renderNutritionView(); }
+
+        function renderMealGrid() {
+            const container = document.getElementById('meal-planner-container');
+            const meals = [{k:'breakfast', t:'Desayuno', i:'fa-sun'}, {k:'midmorning', t:'Media Mañana', i:'fa-apple-whole'}, {k:'lunch', t:'Almuerzo', i:'fa-utensils'}, {k:'snack', t:'Merienda', i:'fa-mug-hot'}, {k:'dinner', t:'Cena', i:'fa-moon'}];
+            container.innerHTML = meals.map(m => `
+                <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center"><i class="fa-solid ${m.i} mr-2 text-emerald-500"></i>${m.t}</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        ${FOOD_DB[m.k].map(f => {
+                            const isSel = weeklyMenu[currentDietDay][m.k].includes(f.id);
+                            return `<div onclick="toggleFood('${m.k}', '${f.id}')" class="food-item ${isSel?'selected':''} border rounded p-2 cursor-pointer bg-white hover:border-emerald-400 transition"><div class="text-xs font-bold text-gray-700">${f.name}</div></div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleFood(mealKey, foodId) {
+            const list = weeklyMenu[currentDietDay][mealKey];
+            const idx = list.indexOf(foodId);
+            if(idx > -1) list.splice(idx, 1); else list.push(foodId);
+            localStorage.setItem('david_bio_v5_menu', JSON.stringify(weeklyMenu));
+            renderMealGrid();
+            generateShoppingList();
+        }
+
+        function generateShoppingList() {
+            const counts = {};
+            DAYS.forEach(d => Object.keys(weeklyMenu[d]).forEach(k => weeklyMenu[d][k].forEach(fid => {
+                const food = FOOD_DB[k].find(f => f.id === fid);
+                if(food) counts[food.name] = (counts[food.name] || 0) + 1;
+            })));
+            const container = document.getElementById('shopping-list-container');
+            if(Object.keys(counts).length === 0) { container.innerHTML = `<div class="col-span-full text-center text-gray-400 py-10">Selecciona comidas primero.</div>`; return; }
+            container.innerHTML = Object.entries(counts).map(([name, count]) => `
+                <div class="bg-white p-3 rounded shadow-sm border border-gray-200 flex justify-between items-center">
+                    <span class="text-gray-700 font-medium">${name}</span>
+                    <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-full">x${count}</span>
+                </div>`).join('');
+        }
+
+        function clearShoppingList() {
+            if(confirm('¿Limpiar todo el menú?')) {
+                DAYS.forEach(d => weeklyMenu[d] = {breakfast:[], midmorning:[], lunch:[], snack:[], dinner:[]});
+                localStorage.setItem('david_bio_v5_menu', JSON.stringify(weeklyMenu));
+                renderNutritionView(); generateShoppingList();
+            }
+        }
+
+        // --- VIEW NAVIGATION ---
+        function setView(id) {
+            document.querySelectorAll('div[id^="view-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`view-${id}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active', 'text-indigo-600'));
+            document.getElementById(`btn-${id}`).classList.add('active', 'text-indigo-600');
+            if(id === 'dashboard') initChart();
+            if(id === 'training') renderTrainingView();
+            if(id === 'nutrition') renderNutritionView();
+            if(id === 'shopping') generateShoppingList();
+        }
+
+        // --- INIT ---
+        window.onload = () => {
+            document.getElementById('in-date').valueAsDate = new Date();
+            initChart();
+        };
+
+    </script>
+</body>
+</html>
